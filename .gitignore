@@ -1,0 +1,17 @@
+# Node.js
+node_modules/
+dist/
+.npm/
+npm-debug.log*
+
+# Environment va lokal ma'lumotlar
+.env
+backend/.env
+backend/data/*.json
+backend/data/*.tmp
+!backend/data/.gitkeep
+
+# Tizim fayllari
+.env.local
+.DS_Store
+Thumbs.db
