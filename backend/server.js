@@ -295,6 +295,7 @@ app.get('/api/accounts/me/', auth, (req, res) => {
   const output = serializeAdmin(req.admin)
   output.can_manage_admins = Boolean(req.admin.is_superuser)
   output.can_manage_centers = Boolean(req.admin.is_superuser)
+  output.can_manage_branches = Boolean(req.admin.is_superuser)
   output.can_create_students = Boolean(req.admin.is_superuser || req.admin.center)
   output.can_edit_students = Boolean(req.admin.is_superuser)
   output.can_delete_students = Boolean(req.admin.is_superuser)
@@ -382,16 +383,26 @@ app.get('/api/branches/', auth, (req, res) => res.json([...store.db.branches].so
 app.post('/api/branches/', auth, requireMainAdmin, (req, res) => {
   const name = clean(req.body.name)
   if (!name) return res.status(400).json({ name: 'Filial nomini kiriting.' })
+  if (name.length > 80) return res.status(400).json({ name: 'Filial nomi 80 ta belgidan oshmasin.' })
   const existing = store.db.branches.find(item => sameText(item.name, name))
   if (existing) return res.json(existing)
-  return res.status(400).json({ detail: 'Faqat belgilangan 15 ta filialdan foydalaniladi.' })
+  const branch = { id: store.nextId('branch'), name, created_at: isoNow() }
+  store.db.branches.push(branch)
+  store.save()
+  res.status(201).json(branch)
 })
 app.patch('/api/branches/:id/', auth, requireMainAdmin, (req, res) => {
   const branch = store.db.branches.find(item => item.id === int(req.params.id))
   if (!branch) return res.status(404).json({ detail: 'Filial topilmadi.' })
   const oldName = branch.name
-  branch.name = clean(req.body.name) || branch.name
+  const name = clean(req.body.name)
+  if (!name) return res.status(400).json({ name: 'Filial nomini kiriting.' })
+  if (name.length > 80) return res.status(400).json({ name: 'Filial nomi 80 ta belgidan oshmasin.' })
+  const duplicate = store.db.branches.find(item => item.id !== branch.id && sameText(item.name, name))
+  if (duplicate) return res.status(400).json({ name: 'Bu filial avval qo‘shilgan.' })
+  branch.name = name
   store.db.students.filter(item => sameText(item.branch, oldName)).forEach(item => { item.branch = branch.name })
+  store.db.admins.filter(item => sameText(item.branch, oldName)).forEach(item => { item.branch = branch.name })
   store.save()
   res.json(branch)
 })
@@ -399,6 +410,7 @@ app.delete('/api/branches/:id/', auth, requireMainAdmin, (req, res) => {
   const branch = store.db.branches.find(item => item.id === int(req.params.id))
   if (!branch) return res.status(404).json({ detail: 'Filial topilmadi.' })
   if (store.db.students.some(item => sameText(item.branch, branch.name))) return res.status(400).json({ detail: 'Bu filialda o‘quvchilar bor.' })
+  if (store.db.admins.some(item => sameText(item.branch, branch.name))) return res.status(400).json({ detail: 'Bu filialga admin biriktirilgan.' })
   store.db.branches = store.db.branches.filter(item => item.id !== branch.id)
   store.save()
   res.status(204).send()

@@ -22,7 +22,6 @@ export function useBranches() {
     const savedName = res.data?.name || cleanName
     if (!branches.value.some(branch => branch.toLowerCase() === savedName.toLowerCase())) {
       branches.value.push(savedName)
-      branches.value.sort((a, b) => a.localeCompare(b))
     }
     return savedName
   }

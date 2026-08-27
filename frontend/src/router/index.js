@@ -3,6 +3,7 @@ import AdminLogin from '../views/AdminLogin.vue'
 import AdminLayout from '../views/AdminLayout.vue'
 import Dashboard from '../views/Dashboard.vue'
 import AdminUsers from '../views/AdminUsers.vue'
+import Branches from '../views/Branches.vue'
 import CreateStudent from '../views/CreateStudent.vue'
 import StudentsList from '../views/StudentsList.vue'
 import ImportStudents from '../views/ImportStudents.vue'
@@ -27,6 +28,7 @@ const routes = [
       { path: '', redirect: '/admin/dashboard' },
       { path: 'dashboard', component: Dashboard },
       { path: 'admins', component: AdminUsers, meta: { mainAdminOnly: true } },
+      { path: 'branches', component: Branches, meta: { mainAdminOnly: true } },
       { path: 'students/create', component: CreateStudent },
       { path: 'students', component: StudentsList },
       { path: 'students/import', component: ImportStudents },

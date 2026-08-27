@@ -13,6 +13,7 @@
       <nav @click="menuOpen = false">
         <RouterLink to="/admin/dashboard">▸ Dashboard</RouterLink>
         <RouterLink v-if="mainAdmin" to="/admin/admins">▸ Adminlar</RouterLink>
+        <RouterLink v-if="mainAdmin" to="/admin/branches">▸ Filiallar</RouterLink>
         <RouterLink v-if="currentAdmin?.can_create_students" to="/admin/students/create">▸ O‘quvchi yaratish</RouterLink>
         <RouterLink v-if="currentAdmin?.can_create_students" to="/admin/students/import">▸ Excel yuklash</RouterLink>
         <RouterLink to="/admin/students">▸ Yaratilgan o‘quvchilar</RouterLink>

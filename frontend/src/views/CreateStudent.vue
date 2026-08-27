@@ -5,7 +5,10 @@
         <h2>O‘quvchi yaratish</h2>
         <p>O‘quvchiga fan, daraja/sinf va filial biriktiriladi. O‘quv markaz doim Al-Aziz bo‘ladi.</p>
       </div>
-      <RouterLink v-if="canCreateStudents" class="primary-btn" to="/admin/students/import">Excel orqali yuklash</RouterLink>
+      <div v-if="canCreateStudents" class="page-actions">
+        <RouterLink v-if="currentAdmin?.can_manage_branches" class="secondary-btn" to="/admin/branches">+ Filial qo‘shish</RouterLink>
+        <RouterLink class="primary-btn" to="/admin/students/import">Excel orqali yuklash</RouterLink>
+      </div>
     </div>
 
     <div v-if="!canCreateStudents" class="error-box">

@@ -864,30 +864,73 @@ export class JsonStore {
     const centerId = Number(preferredCenter?.id) || 1
     this.db.centers = [{ ...preferredCenter, id: centerId, name: FIXED_CENTER_NAME }]
 
+    const existingBranches = Array.isArray(this.db.branches) ? this.db.branches : []
+    const usedIds = new Set()
+    const usedNames = new Set()
+    const branches = FIXED_BRANCH_NAMES.map((name, index) => {
+      const normalizedName = normalizeOrganizationName(name)
+      const existing = existingBranches.find(item => normalizeOrganizationName(item.name) === normalizedName)
+      const id = index + 1
+      usedIds.add(id)
+      usedNames.add(normalizedName)
+      return {
+        ...existing,
+        id,
+        name,
+        created_at: existing?.created_at || now(),
+      }
+    })
+
+    let nextBranchId = Math.max(
+      FIXED_BRANCH_NAMES.length + 1,
+      Number(this.db.meta.nextIds.branch || 1),
+      ...existingBranches.map(item => (Number(item.id) || 0) + 1),
+    )
+
+    existingBranches.forEach(item => {
+      const name = String(item?.name || '').trim()
+      const normalizedName = normalizeOrganizationName(name)
+      if (!name || !normalizedName || usedNames.has(normalizedName)) return
+
+      let id = Number(item.id)
+      if (!Number.isInteger(id) || id < 1 || usedIds.has(id)) {
+        while (usedIds.has(nextBranchId)) nextBranchId += 1
+        id = nextBranchId
+        nextBranchId += 1
+      }
+
+      usedIds.add(id)
+      usedNames.add(normalizedName)
+      branches.push({
+        ...item,
+        id,
+        name,
+        created_at: item.created_at || now(),
+      })
+    })
+
+    this.db.branches = branches
+    const canonicalBranchName = value => this.db.branches.find(item => (
+      normalizeOrganizationName(item.name) === normalizeOrganizationName(value)
+    ))?.name
+
     this.db.students.forEach(student => {
       student.center = centerId
-      const branchName = FIXED_BRANCH_NAMES.find(name => (
-        normalizeOrganizationName(name) === normalizeOrganizationName(student.branch)
-      ))
+      const branchName = canonicalBranchName(student.branch)
       if (branchName) student.branch = branchName
     })
     this.db.admins.forEach(admin => {
       if (admin.center) admin.center = centerId
-      const branchName = FIXED_BRANCH_NAMES.find(name => (
-        normalizeOrganizationName(name) === normalizeOrganizationName(admin.branch)
-      ))
+      const branchName = canonicalBranchName(admin.branch)
       if (branchName) admin.branch = branchName
     })
 
-    this.db.branches = FIXED_BRANCH_NAMES.map((name, index) => ({
-      id: index + 1,
-      name,
-      created_at: this.db.branches.find(item => (
-        normalizeOrganizationName(item.name) === normalizeOrganizationName(name)
-      ))?.created_at || now(),
-    }))
     this.db.meta.nextIds.center = Math.max(Number(this.db.meta.nextIds.center || 1), centerId + 1)
-    this.db.meta.nextIds.branch = FIXED_BRANCH_NAMES.length + 1
+    this.db.meta.nextIds.branch = Math.max(
+      nextBranchId,
+      Number(this.db.meta.nextIds.branch || 1),
+      ...this.db.branches.map(item => (Number(item.id) || 0) + 1),
+    )
   }
 
   ensureBuiltInTests() {
