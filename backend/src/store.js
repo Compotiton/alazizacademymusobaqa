@@ -385,7 +385,7 @@ const seedSubjects = [
   ['Rus tili', [['A1', 30], ['A2', 30], ['B1', 30]]],
 ]
 
-function freshDatabase() {
+export function freshDatabase() {
   const subjects = []
   const levels = []
   let levelId = 1
@@ -808,6 +808,7 @@ export class JsonStore {
   constructor(filePath) {
     this.filePath = path.resolve(filePath)
     this.db = null
+    this.storageType = 'json'
   }
 
   async init({ adminLogin, adminPassword }) {
@@ -818,6 +819,13 @@ export class JsonStore {
       this.db = freshDatabase()
     }
 
+    await this.prepareDatabase({ adminLogin, adminPassword })
+    await this.save()
+  }
+
+  async prepareDatabase({ adminLogin, adminPassword }) {
+    if (!this.db?.meta || typeof this.db.meta !== 'object') this.db.meta = freshDatabase().meta
+    if (!this.db.meta.nextIds || typeof this.db.meta.nextIds !== 'object') this.db.meta.nextIds = freshDatabase().meta.nextIds
     if (!Array.isArray(this.db.questions)) this.db.questions = []
     if (!Array.isArray(this.db.answers)) this.db.answers = []
     if (!Array.isArray(this.db.results)) this.db.results = []
@@ -831,8 +839,10 @@ export class JsonStore {
     this.pruneEmptyLevels()
 
     if (!this.db.admins.some(item => item.username.toLowerCase() === adminLogin.toLowerCase())) {
+      const adminId = Math.max(1, ...this.db.admins.map(item => Number(item.id) || 0)) + (this.db.admins.length ? 1 : 0)
+      this.db.meta.nextIds.admin = Math.max(Number(this.db.meta.nextIds.admin || 1), adminId + 1)
       this.db.admins.push({
-        id: 1,
+        id: adminId,
         username: adminLogin,
         password_hash: await bcrypt.hash(adminPassword, 12),
         first_name: '',
@@ -845,7 +855,6 @@ export class JsonStore {
         date_joined: now(),
       })
     }
-    this.save()
   }
 
   ensureOrganizationOptions() {
@@ -996,6 +1005,10 @@ export class JsonStore {
     fs.writeFileSync(temporary, JSON.stringify(this.db, null, 2), 'utf8')
     fs.renameSync(temporary, this.filePath)
   }
+
+  async flush() {}
+
+  async close() {}
 
   deleteStudentCascade(studentId) {
     const resultIds = this.db.results.filter(item => item.student === studentId).map(item => item.id)

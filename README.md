@@ -39,7 +39,7 @@ Frontend Vue 3 + Vite, backend Node.js + Express bilan ishlaydi. Eski Django/Pyt
 - Oddiy testlar bittadan swiper ko‘rinishida chiqadi; raqamli navigator, avtomatik keyingi savol, yashil ishlangan holati va majburiy fullscreen rejimi mavjud.
 - Faqat testi mavjud fan va darajalar qoldirilgan.
 - Admin panelning `Testlar` bo‘limida yangi fan va yangi daraja/sinf ham qo‘shiladi.
-- Yangi ma’lumotlar `backend/data/database.json` fayliga saqlanadi.
+- Productionda barcha ma’lumotlar Railway PostgreSQL’da saqlanadi. `database.json` faqat `DATABASE_URL` berilmagan lokal zaxira rejimi uchun ishlatiladi.
 
 ## Windows’da ishga tushirish
 
@@ -89,14 +89,15 @@ npm run dev
 Railway Variables bo‘limiga quyidagilarni kiriting:
 
 ```text
+NODE_ENV=production
+DATABASE_URL=${{Postgres.DATABASE_URL}}
 JWT_SECRET=uzun-va-maxfiy-kalit
 ADMIN_LOGIN=ulugbek
 ADMIN_PASSWORD=yangi-kuchli-parol
 CORS_ALLOWED_ORIGINS=https://SIZNING-SAYTINGIZ.netlify.app
-DATA_FILE=/app/data/database.json
 ```
 
-Ma’lumotlar o‘chib ketmasligi uchun Railway Volume yarating va `/app/data` manziliga ulang.
+Railway Project Canvas ichidan `Create → Database → Add PostgreSQL` ni tanlang va backend service’ga `DATABASE_URL=${{Postgres.DATABASE_URL}}` reference variable’ni ulang. Backend uchun alohida Volume kerak emas.
 `PORT` qiymatini qo‘lda yozmang; Railway uni avtomatik beradi.
 
 ## Netlify frontend

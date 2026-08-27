@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs'
 import multer from 'multer'
 import ExcelJS from 'exceljs'
 import { JsonStore, timestamps } from './src/store.js'
+import { PostgresStore } from './src/postgres-store.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 8000)
@@ -17,12 +18,19 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret'
 const ADMIN_LOGIN = process.env.ADMIN_LOGIN || 'ulugbek'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '123456'
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'database.json')
+const DATABASE_URL = String(process.env.DATABASE_URL || '').trim()
 const allowedOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
   .map(value => value.trim())
   .filter(Boolean)
 
-const store = new JsonStore(DATA_FILE)
+if (process.env.NODE_ENV === 'production' && !DATABASE_URL) {
+  throw new Error('Production uchun DATABASE_URL majburiy. Railway PostgreSQL service ulang.')
+}
+
+const store = DATABASE_URL
+  ? new PostgresStore(DATABASE_URL, { seedFile: DATA_FILE })
+  : new JsonStore(DATA_FILE)
 await store.init({ adminLogin: ADMIN_LOGIN, adminPassword: ADMIN_PASSWORD })
 
 const app = express()
@@ -258,8 +266,8 @@ function styleWorksheet(ws) {
   })
 }
 
-app.get('/', (req, res) => res.json({ status: 'ok', message: 'Node.js backend ishlayapti' }))
-app.get('/api/health/', (req, res) => res.json({ status: 'ok', message: 'Node.js backend ishlayapti', questions_count: store.db.questions.length }))
+app.get('/', (req, res) => res.json({ status: 'ok', message: 'Node.js backend ishlayapti', database: store.storageType }))
+app.get('/api/health/', (req, res) => res.json({ status: 'ok', message: 'Node.js backend ishlayapti', database: store.storageType, questions_count: store.db.questions.length }))
 
 app.post('/api/auth/login/', asyncRoute(async (req, res) => {
   const username = clean(req.body.username)
@@ -799,8 +807,29 @@ app.use((error, req, res, next) => {
   res.status(error.status || 500).json({ detail: error.status ? error.message : 'Serverda kutilmagan xatolik yuz berdi.' })
 })
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Node.js backend: http://localhost:${PORT}`)
   console.log(`API: http://localhost:${PORT}/api`)
+  console.log(`Ma’lumotlar bazasi: ${store.storageType === 'postgresql' ? 'PostgreSQL' : 'JSON (lokal)'}`)
   console.log(`Saqlangan test savollari: ${store.db.questions.length}`)
 })
+
+let shuttingDown = false
+async function shutdown(signal) {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`${signal}: server xavfsiz yopilmoqda...`)
+  server.close(async () => {
+    try {
+      await store.close()
+      process.exit(0)
+    } catch (error) {
+      console.error('Bazani yopishda xatolik:', error)
+      process.exit(1)
+    }
+  })
+  setTimeout(() => process.exit(1), 10000).unref()
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))

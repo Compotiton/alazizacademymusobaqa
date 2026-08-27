@@ -14,28 +14,35 @@ ZIP ichidagi `Dubai-NodeJS` papkasini GitHub repository'ga yuklang. `node_module
 1. Railway'da **New Project → Deploy from GitHub repo** ni tanlang.
 2. Repository'ni tanlang. Root Directory'ni bo‘sh qoldiring.
 3. Loyiha ichidagi `railway.json` va `nixpacks.toml` build/start komandalarini avtomatik beradi.
-4. **Variables** bo‘limiga quyidagilarni kiriting:
+4. Project Canvas ichida **Create → Database → Add PostgreSQL** ni tanlang.
+5. Backend service → **Variables** bo‘limida **Add Reference Variable** orqali Postgres service’dagi `DATABASE_URL` ni ulang. Natijada qiymat quyidagicha bo‘ladi:
+
+```text
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+```
+
+6. Qolgan Variables’ni kiriting:
 
 ```text
 NODE_ENV=production
+DATABASE_URL=${{Postgres.DATABASE_URL}}
 JWT_SECRET=kamida-32-belgidan-iborat-maxfiy-kalit
 ADMIN_LOGIN=ulugbek
 ADMIN_PASSWORD=ozingizning-kuchli-parolingiz
 CORS_ALLOWED_ORIGINS=https://SIZNING-SAYTINGIZ.netlify.app
-DATA_FILE=/app/data/database.json
 ```
 
 `PORT` yozmang — Railway uni avtomatik beradi.
 
-5. Ma’lumotlar redeploydan keyin o‘chib ketmasligi uchun Railway'da **Volume** yarating va mount path sifatida `/app/data` yozing.
-6. **Settings → Networking → Generate Domain** orqali backend domenini oling.
-7. Quyidagi manzilni ochib tekshiring:
+7. **Deploy** ni bosing. Productionda `DATABASE_URL` bo‘lmasa backend ataylab ishga tushmaydi.
+8. **Settings → Networking → Generate Domain** orqali backend domenini oling.
+9. Quyidagi manzilni ochib tekshiring:
 
 ```text
 https://SIZNING-BACKEND.up.railway.app/api/health/
 ```
 
-Javobda `status: ok` chiqishi kerak.
+Javobda `status: ok` va `database: postgresql` chiqishi kerak.
 
 ## 3. Frontendni Netlify'ga joylash
 
@@ -75,5 +82,5 @@ Eski yoki buzilgan `node_modules` papkasi mavjud bo‘lsa, uni o‘chirib, `npm 
 ## Muhim
 
 - Maxfiy parol va JWT kalitini kod yoki GitHub'ga yozmang; faqat Railway Variables'da saqlang.
-- Railway Volume bo‘lmasa, o‘quvchilar, kodlar va natijalar redeployda yo‘qolishi mumkin.
+- O‘quvchilar, kodlar, adminlar, testlar va natijalar Railway PostgreSQL’da saqlanadi; backend uchun alohida Volume kerak emas.
 - Netlify'da `VITE_API_BASE_URL` o‘zgartirilgandan keyin frontendni qayta deploy qilish shart.
