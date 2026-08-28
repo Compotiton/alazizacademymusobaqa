@@ -39,7 +39,7 @@ Frontend Vue 3 + Vite, backend Node.js + Express bilan ishlaydi. Eski Django/Pyt
 - Oddiy testlar bittadan swiper ko‘rinishida chiqadi; raqamli navigator, avtomatik keyingi savol va yashil ishlangan holati mavjud. Fullscreen majburiy emas, o‘quvchi testni tark etib shu code bilan qayta davom ettirishi mumkin.
 - Faqat testi mavjud fan va darajalar qoldirilgan.
 - Admin panelning `Testlar` bo‘limida yangi fan va yangi daraja/sinf ham qo‘shiladi.
-- Productionda barcha ma’lumotlar Railway PostgreSQL’da saqlanadi. `database.json` faqat `DATABASE_URL` berilmagan lokal zaxira rejimi uchun ishlatiladi.
+- Railway’da PostgreSQL majburiy emas. `STORAGE_DRIVER=json` va `DATA_FILE=/app/backend/data/database.json` bilan ma’lumotlar backend Volume ichida doimiy saqlanadi; koddagi barcha fan, daraja va testlar yangi bazaga avtomatik qo‘shiladi.
 
 ## Windows’da ishga tushirish
 

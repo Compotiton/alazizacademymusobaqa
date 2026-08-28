@@ -19,16 +19,18 @@ const ADMIN_LOGIN = process.env.ADMIN_LOGIN || 'ulugbek'
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '123456'
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'database.json')
 const DATABASE_URL = String(process.env.DATABASE_URL || '').trim()
+const STORAGE_DRIVER = String(process.env.STORAGE_DRIVER || '').trim().toLowerCase()
+const USE_POSTGRES = STORAGE_DRIVER !== 'json' && Boolean(DATABASE_URL)
 const allowedOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
   .map(value => value.trim())
   .filter(Boolean)
 
-if (process.env.NODE_ENV === 'production' && !DATABASE_URL) {
-  throw new Error('Production uchun DATABASE_URL majburiy. Railway PostgreSQL service ulang.')
+if (STORAGE_DRIVER === 'postgres' && !DATABASE_URL) {
+  throw new Error('STORAGE_DRIVER=postgres uchun DATABASE_URL majburiy.')
 }
 
-const store = DATABASE_URL
+const store = USE_POSTGRES
   ? new PostgresStore(DATABASE_URL, { seedFile: DATA_FILE })
   : new JsonStore(DATA_FILE)
 await store.init({ adminLogin: ADMIN_LOGIN, adminPassword: ADMIN_PASSWORD })

@@ -346,7 +346,7 @@ function buildProgressBody() {
 async function saveProgressToServer(force = false) {
   if (!payload.value || submitted || isVersionSelect.value || !payloadCode()) return
   const now = Date.now()
-  if (!force && now - lastServerProgressSave < 2500) return
+  if (!force && now - lastServerProgressSave < 12000) return
   lastServerProgressSave = now
   try {
     await api.post('/exam/progress/', buildProgressBody())
@@ -359,7 +359,7 @@ function scheduleProgressSave() {
   progressSaveTimer = setTimeout(() => {
     progressSaveTimer = null
     saveProgressToServer(true)
-  }, 400)
+  }, 3000)
 }
 
 function persistTestProgress(sendRemote = true) {
@@ -710,7 +710,7 @@ function startTimer() {
     else persistTestProgress(false)
 
     timerTicksSinceServerSave += 1
-    if (timerTicksSinceServerSave >= 3) {
+    if (timerTicksSinceServerSave >= 15) {
       timerTicksSinceServerSave = 0
       saveProgressToServer(false)
     }

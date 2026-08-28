@@ -14,35 +14,37 @@ ZIP ichidagi `Dubai-NodeJS` papkasini GitHub repository'ga yuklang. `node_module
 1. Railway'da **New Project → Deploy from GitHub repo** ni tanlang.
 2. Repository'ni tanlang. Root Directory'ni bo‘sh qoldiring.
 3. Loyiha ichidagi `railway.json` va `nixpacks.toml` build/start komandalarini avtomatik beradi.
-4. Project Canvas ichida **Create → Database → Add PostgreSQL** ni tanlang.
-5. Backend service → **Variables** bo‘limida **Add Reference Variable** orqali Postgres service’dagi `DATABASE_URL` ni ulang. Natijada qiymat quyidagicha bo‘ladi:
+4. Backend service ichida **Volume** yarating va uning **Mount Path** qiymatini aynan quyidagicha yozing:
 
 ```text
-DATABASE_URL=${{Postgres.DATABASE_URL}}
+/app/backend/data
 ```
 
-6. Qolgan Variables’ni kiriting:
+5. Backend service → **Variables** bo‘limiga quyidagilarni kiriting:
 
 ```text
 NODE_ENV=production
-DATABASE_URL=${{Postgres.DATABASE_URL}}
+STORAGE_DRIVER=json
+DATA_FILE=/app/backend/data/database.json
 JWT_SECRET=kamida-32-belgidan-iborat-maxfiy-kalit
 ADMIN_LOGIN=ulugbek
 ADMIN_PASSWORD=ozingizning-kuchli-parolingiz
 CORS_ALLOWED_ORIGINS=https://SIZNING-SAYTINGIZ.netlify.app
 ```
 
+Eski `DATABASE_URL` o‘zgaruvchisini backend servisidan o‘chiring. PostgreSQL service bu rejimda kerak emas.
+
 `PORT` yozmang — Railway uni avtomatik beradi.
 
-7. **Deploy** ni bosing. Productionda `DATABASE_URL` bo‘lmasa backend ataylab ishga tushmaydi.
-8. **Settings → Networking → Generate Domain** orqali backend domenini oling.
-9. Quyidagi manzilni ochib tekshiring:
+6. **Deploy** ni bosing.
+7. **Settings → Networking → Generate Domain** orqali backend domenini oling.
+8. Quyidagi manzilni ochib tekshiring:
 
 ```text
 https://SIZNING-BACKEND.up.railway.app/api/health/
 ```
 
-Javobda `status: ok` va `database: postgresql` chiqishi kerak.
+Javobda `status: ok` va `database: json` chiqishi kerak.
 
 ## 3. Frontendni Netlify'ga joylash
 
@@ -82,5 +84,6 @@ Eski yoki buzilgan `node_modules` papkasi mavjud bo‘lsa, uni o‘chirib, `npm 
 ## Muhim
 
 - Maxfiy parol va JWT kalitini kod yoki GitHub'ga yozmang; faqat Railway Variables'da saqlang.
-- O‘quvchilar, kodlar, adminlar, testlar va natijalar Railway PostgreSQL’da saqlanadi; backend uchun alohida Volume kerak emas.
+- O‘quvchilar, kodlar, adminlar va natijalar `/app/backend/data/database.json` faylida saqlanadi. Bu papkaga Railway Volume ulangan bo‘lishi shart.
+- Barcha fanlar, darajalar va testlar loyiha kodida saqlangan; yangi toza JSON baza birinchi ishga tushganda ular avtomatik yaratiladi.
 - Netlify'da `VITE_API_BASE_URL` o‘zgartirilgandan keyin frontendni qayta deploy qilish shart.
