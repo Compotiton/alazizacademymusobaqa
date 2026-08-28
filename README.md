@@ -36,7 +36,7 @@ Frontend Vue 3 + Vite, backend Node.js + Express bilan ishlaydi. Eski Django/Pyt
 - Barcha fan va darajalarda test vaqti 30 daqiqa.
 - O‘quvchi yaratishda o‘quv markaz doim `Al-Aziz`; filial faqat belgilangan 15 ta ro‘yxatdan tanlanadi.
 - Asosiy admin qo‘shimcha admin yaratadi. Qo‘shimcha admin o‘quvchi/code yaratadi, test va natijalarni ko‘radi; admin yoki test yarata olmaydi.
-- Oddiy testlar bittadan swiper ko‘rinishida chiqadi; raqamli navigator, avtomatik keyingi savol, yashil ishlangan holati va majburiy fullscreen rejimi mavjud.
+- Oddiy testlar bittadan swiper ko‘rinishida chiqadi; raqamli navigator, avtomatik keyingi savol va yashil ishlangan holati mavjud. Fullscreen majburiy emas, o‘quvchi testni tark etib shu code bilan qayta davom ettirishi mumkin.
 - Faqat testi mavjud fan va darajalar qoldirilgan.
 - Admin panelning `Testlar` bo‘limida yangi fan va yangi daraja/sinf ham qo‘shiladi.
 - Productionda barcha ma’lumotlar Railway PostgreSQL’da saqlanadi. `database.json` faqat `DATABASE_URL` berilmagan lokal zaxira rejimi uchun ishlatiladi.

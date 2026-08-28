@@ -753,10 +753,15 @@ app.post('/api/exam/progress/', (req, res) => {
   res.json({ status: 'ok', remaining_seconds: student.progress_remaining_seconds, saved_answers: student.progress_answers, progress_current_index: student.progress_current_index })
 })
 
-app.post('/api/exam/submit/', (req, res) => {
+app.post('/api/exam/submit/', asyncRoute(async (req, res) => {
   const student = store.db.students.find(item => item.code === clean(req.body.code))
   if (!student) return res.status(404).json({ detail: 'Bunday code topilmadi.' })
-  if (student.status === 'completed' || student.is_used) return res.status(400).json({ detail: 'Bu code oldin ishlatilgan.' })
+  if (student.status === 'completed' || student.is_used) {
+    const savedResult = getResultForStudent(student.id)
+    if (!savedResult) return res.status(409).json({ detail: 'Test yakunlangan, lekin natija topilmadi. Adminga murojaat qiling.' })
+    await store.flush()
+    return res.status(200).json(serializeResult(savedResult))
+  }
   if (student.status !== 'in_progress') return res.status(400).json({ detail: 'Avval testni boshlash kerak.' })
   const questions = store.db.questions.filter(item => item.subject === student.subject && item.level === student.level && item.version === (student.selected_version || 1)).sort((a, b) => a.id - b.id)
   if (!questions.length) return res.status(400).json({ detail: 'Test savollari topilmadi.' })
@@ -775,6 +780,8 @@ app.post('/api/exam/submit/', (req, res) => {
     id: store.nextId('result'), student: student.id, total_questions: questions.length, correct_count: 0, percent: 0,
     started_at: student.started_at || finishedAt, finished_at: finishedAt, spent_seconds: durationSeconds - remaining, created_at: finishedAt,
   }
+  const previousResultIds = store.db.results.filter(item => item.student === student.id).map(item => item.id)
+  store.db.answers = store.db.answers.filter(item => !previousResultIds.includes(item.result))
   store.db.results = store.db.results.filter(item => item.student !== student.id)
   store.db.results.push(result)
   questions.forEach(question => {
@@ -793,9 +800,9 @@ app.post('/api/exam/submit/', (req, res) => {
   student.progress_remaining_seconds = 0
   student.progress_current_index = 0
   student.progress_updated_at = finishedAt
-  store.save()
+  await store.save()
   res.status(201).json(serializeResult(result))
-})
+}))
 
 app.post('/api/exam/result/', (req, res) => {
   const student = store.db.students.find(item => item.code === clean(req.body.code))

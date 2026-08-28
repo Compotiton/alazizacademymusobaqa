@@ -1,5 +1,5 @@
 <template>
-  <div class="exam-page" :class="{ 'exam-page-locked': !isMental && !isVersionSelect }" v-if="payload">
+  <div class="exam-page" :class="{ 'exam-page-layout': !isMental && !isVersionSelect }" v-if="payload">
     <header class="exam-header">
       <div>
         <h1>{{ payload.student.full_name }}</h1>
@@ -153,15 +153,6 @@
       </div>
     </main>
 
-    <div v-if="fullscreenPromptVisible" class="fullscreen-lock-overlay">
-      <div class="fullscreen-lock-card">
-        <div class="fullscreen-lock-icon">⛶</div>
-        <h2>Test fullscreen rejimida ishlanadi</h2>
-        <p>Testni davom ettirish uchun fullscreen rejimiga qayting. Test tugamaguncha bu oyna yopilmaydi.</p>
-        <button type="button" class="primary-btn" @click="requestExamFullscreen">Fullscreen davom etish</button>
-      </div>
-    </div>
-
     <div v-if="finishModal.show" class="modal-backdrop success-backdrop">
       <div class="finish-modal-card" :class="finishModal.type">
         <div class="finish-icon">{{ finishModal.type === 'success' ? '✓' : '!' }}</div>
@@ -181,7 +172,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import api from '../api/axios'
 
 const router = useRouter()
@@ -208,7 +199,6 @@ const versionLoading = ref(false)
 const versionError = ref('')
 const currentQuestionIndex = ref(0)
 const slideTransition = ref('slide-next')
-const fullscreenPromptVisible = ref(false)
 const mentalTimers = []
 
 let intervalId = null
@@ -229,7 +219,6 @@ const answeredCount = computed(() => allQuestions.value.filter(question => Boole
 const answeredPercent = computed(() => allQuestions.value.length
   ? Math.round((answeredCount.value / allQuestions.value.length) * 100)
   : 0)
-const examActive = () => Boolean(payload.value && !isVersionSelect.value && !submitted)
 const formattedTime = computed(() => {
   const m = Math.floor(remainingSeconds.value / 60)
   const s = remainingSeconds.value % 60
@@ -237,8 +226,6 @@ const formattedTime = computed(() => {
 })
 
 function showFinishSuccess() {
-  fullscreenPromptVisible.value = false
-  exitExamFullscreen()
   finishModal.show = true
   finishModal.type = 'success'
   finishModal.title = 'Test yakunlandi'
@@ -257,7 +244,6 @@ function showFinishError(message) {
 }
 
 function goToStudentLogin() {
-  exitExamFullscreen()
   router.push('/student')
 }
 
@@ -444,48 +430,6 @@ function remainingFromStartedAt(defaultMinutes) {
   return Math.max(0, durationSeconds - elapsedSeconds)
 }
 
-async function requestExamFullscreen() {
-  if (!examActive()) {
-    fullscreenPromptVisible.value = false
-    return
-  }
-  if (document.fullscreenElement) {
-    fullscreenPromptVisible.value = false
-    return
-  }
-  try {
-    await document.documentElement.requestFullscreen({ navigationUI: 'hide' })
-    fullscreenPromptVisible.value = false
-  } catch (_) {
-    fullscreenPromptVisible.value = true
-  }
-}
-
-async function exitExamFullscreen() {
-  if (!document.fullscreenElement) return
-  try {
-    await document.exitFullscreen()
-  } catch (_) {}
-}
-
-function handleFullscreenChange() {
-  fullscreenPromptVisible.value = Boolean(examActive() && !document.fullscreenElement)
-}
-
-function handleBeforeUnload(event) {
-  saveProgressBeforeExit()
-  if (!examActive()) return
-  event.preventDefault()
-  event.returnValue = ''
-}
-
-function handleExamKeydown(event) {
-  if (!examActive()) return
-  const reloadShortcut = event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r')
-  const backShortcut = event.altKey && event.key === 'ArrowLeft'
-  if (reloadShortcut || backShortcut) event.preventDefault()
-}
-
 function clearMentalTimers() {
   while (mentalTimers.length) clearTimeout(mentalTimers.pop())
 }
@@ -596,6 +540,10 @@ async function submitMentalExam() {
   submitting.value = true
   mentalPhase.value = 'finished'
   clearMentalTimers()
+  if (progressSaveTimer) {
+    clearTimeout(progressSaveTimer)
+    progressSaveTimer = null
+  }
 
   const lastAttemptedIndex = Math.min(currentMentalIndex.value, mentalTasks.value.length - 1)
   const answerList = mentalTasks.value
@@ -606,7 +554,7 @@ async function submitMentalExam() {
     }))
 
   try {
-    await api.post('/exam/submit/', {
+    const response = await api.post('/exam/submit/', {
       code: payloadCode(),
       answers: answerList,
       remaining_seconds: Math.max(0, Number(remainingSeconds.value || 0)),
@@ -614,10 +562,13 @@ async function submitMentalExam() {
     sessionStorage.removeItem('exam_payload')
     localStorage.removeItem(mentalProgressKey())
     localStorage.removeItem(examProgressKey())
-    showFinishSuccess()
+    showFinishSuccess(response.data)
   } catch (e) {
-    submitted = false
-    showFinishError(e.response?.data?.detail || 'Mental javoblarni yuborishda xatolik.')
+    const completed = await recoverCompletedSubmission()
+    if (!completed) {
+      submitted = false
+      showFinishError(e.response?.data?.detail || 'Mental javoblarni yuborishda xatolik.')
+    }
   } finally {
     submitting.value = false
   }
@@ -637,9 +588,13 @@ async function submitExam(force = false) {
   submitted = true
   submitting.value = true
   clearInterval(intervalId)
+  if (progressSaveTimer) {
+    clearTimeout(progressSaveTimer)
+    progressSaveTimer = null
+  }
   const answerList = payload.value.questions.map(q => ({ question_id: q.id, answer: answers[q.id] || '' }))
   try {
-    await api.post('/exam/submit/', {
+    const response = await api.post('/exam/submit/', {
       code: payloadCode(),
       answers: answerList,
       remaining_seconds: Math.max(0, Number(remainingSeconds.value || 0)),
@@ -647,12 +602,30 @@ async function submitExam(force = false) {
     sessionStorage.removeItem('exam_payload')
     localStorage.removeItem(examProgressKey())
     localStorage.removeItem(mentalProgressKey())
-    showFinishSuccess()
+    showFinishSuccess(response.data)
   } catch (e) {
-    submitted = false
-    showFinishError(e.response?.data?.detail || 'Testni yakunlashda xatolik.')
+    const completed = await recoverCompletedSubmission()
+    if (!completed) {
+      submitted = false
+      showFinishError(e.response?.data?.detail || 'Testni yakunlashda xatolik.')
+      if (remainingSeconds.value > 0) startTimer()
+    }
   } finally {
     submitting.value = false
+  }
+}
+
+async function recoverCompletedSubmission() {
+  try {
+    const response = await api.post('/exam/result/', { code: payloadCode() })
+    sessionStorage.removeItem('exam_payload')
+    localStorage.removeItem(examProgressKey())
+    localStorage.removeItem(mentalProgressKey())
+    submitted = true
+    showFinishSuccess(response.data)
+    return true
+  } catch (_) {
+    return false
   }
 }
 
@@ -692,12 +665,7 @@ function bootExamPayload() {
   mentalPhase.value = 'countdown'
   countdownValue.value = 3
 
-  if (!payload.value || isVersionSelect.value) {
-    fullscreenPromptVisible.value = false
-    return
-  }
-
-  nextTick(requestExamFullscreen)
+  if (!payload.value || isVersionSelect.value) return
 
   if (isMental.value) {
     // Mentalda code qayta kiritilganda vaqt yangidan boshlanmaydi.
@@ -775,17 +743,11 @@ function saveProgressBeforeExit() {
 
 function handleVisibilityChange() {
   if (document.visibilityState === 'hidden') saveProgressBeforeExit()
-  if (document.visibilityState === 'visible' && examActive() && !document.fullscreenElement) {
-    fullscreenPromptVisible.value = true
-  }
 }
 
 onMounted(() => {
-  window.addEventListener('beforeunload', handleBeforeUnload)
   window.addEventListener('pagehide', saveProgressBeforeExit)
-  window.addEventListener('keydown', handleExamKeydown)
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  document.addEventListener('fullscreenchange', handleFullscreenChange)
   const saved = sessionStorage.getItem('exam_payload')
   if (!saved) return
   payload.value = JSON.parse(saved)
@@ -794,24 +756,19 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   saveProgressBeforeExit()
-  window.removeEventListener('beforeunload', handleBeforeUnload)
   window.removeEventListener('pagehide', saveProgressBeforeExit)
-  window.removeEventListener('keydown', handleExamKeydown)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  document.removeEventListener('fullscreenchange', handleFullscreenChange)
   clearInterval(intervalId)
   if (progressSaveTimer) clearTimeout(progressSaveTimer)
   if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer)
   clearMentalTimers()
 })
-
-onBeforeRouteLeave(() => !examActive())
 </script>
 
 
 <style scoped>
 
-.exam-page-locked {
+.exam-page-layout {
   height: 100vh;
   height: 100dvh;
   min-height: 100vh;
@@ -821,7 +778,7 @@ onBeforeRouteLeave(() => !examActive())
   flex-direction: column;
 }
 
-.exam-page-locked .exam-header {
+.exam-page-layout .exam-header {
   position: relative;
   flex: 0 0 auto;
 }
@@ -1018,50 +975,6 @@ onBeforeRouteLeave(() => !examActive())
 .slide-prev-enter-from {
   opacity: 0;
   transform: translateX(-42px);
-}
-
-.fullscreen-lock-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 5000;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(2, 6, 23, 0.96);
-  backdrop-filter: blur(14px);
-}
-
-.fullscreen-lock-card {
-  width: min(520px, 100%);
-  padding: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 28px;
-  background: linear-gradient(145deg, #111827, #1e293b);
-  color: #fff;
-  text-align: center;
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.5);
-}
-
-.fullscreen-lock-card h2 {
-  margin: 14px 0 10px;
-}
-
-.fullscreen-lock-card p {
-  margin: 0 0 22px;
-  color: #cbd5e1;
-  line-height: 1.6;
-}
-
-.fullscreen-lock-icon {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: 22px;
-  background: rgba(59, 130, 246, 0.18);
-  color: #93c5fd;
-  font-size: 40px;
 }
 
 @media (max-width: 640px) {
