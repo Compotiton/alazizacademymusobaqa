@@ -3,6 +3,20 @@ import path from 'node:path'
 import { JsonStore, freshDatabase } from './store.js'
 
 const STATE_TABLE = 'al_aziz_app_state'
+const RETRYABLE_POSTGRES_CODES = new Set([
+  '57P03', // PostgreSQL recovery/startup holatida
+  '08000', '08001', '08003', '08004', '08006', '08007', '08P01',
+  '53300',
+])
+
+const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds))
+
+function isRetryablePostgresError(error) {
+  const code = String(error?.code || '')
+  const message = String(error?.message || error?.cause?.message || '')
+  return RETRYABLE_POSTGRES_CODES.has(code)
+    || /recovery|not yet accepting connections|connection terminated|connection timeout|econnrefused|enotfound|socket hang up/i.test(message)
+}
 
 function parseState(value) {
   if (!value) return null
@@ -27,7 +41,7 @@ export class PostgresStore extends JsonStore {
     this.pool = new Pool({
       connectionString: this.connectionString,
       max: 5,
-      connectionTimeoutMillis: 10000,
+      connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
       application_name: 'al-aziz-test-platform',
     })
@@ -36,17 +50,41 @@ export class PostgresStore extends JsonStore {
     })
   }
 
+  async queryWithRetry(sql, params = [], options = {}) {
+    const attempts = Math.max(1, Number(options.attempts || 6))
+    const operation = options.operation || 'PostgreSQL ulanishi'
+    let lastError
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        return await this.pool.query(sql, params)
+      } catch (error) {
+        lastError = error
+        if (!isRetryablePostgresError(error) || attempt >= attempts) throw error
+        const delay = Math.min(1000 + attempt * 1000, 5000)
+        console.warn(`${operation}: baza hali tayyor emas (${attempt}/${attempts}). ${delay / 1000} sekunddan keyin qayta uriniladi.`)
+        await wait(delay)
+      }
+    }
+
+    throw lastError
+  }
+
   async init({ adminLogin, adminPassword }) {
     await this.ensurePool()
-    await this.pool.query(`
+    await this.queryWithRetry(`
       CREATE TABLE IF NOT EXISTS ${STATE_TABLE} (
         id SMALLINT PRIMARY KEY CHECK (id = 1),
         state JSONB NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
-    `)
+    `, [], { attempts: 12, operation: 'PostgreSQL ishga tushishi' })
 
-    const result = await this.pool.query(`SELECT state FROM ${STATE_TABLE} WHERE id = 1`)
+    const result = await this.queryWithRetry(
+      `SELECT state FROM ${STATE_TABLE} WHERE id = 1`,
+      [],
+      { attempts: 6, operation: 'PostgreSQL ma’lumotlarini o‘qish' },
+    )
     if (result.rowCount) {
       this.db = parseState(result.rows[0].state)
     } else if (this.seedFile && fs.existsSync(this.seedFile)) {
@@ -64,12 +102,12 @@ export class PostgresStore extends JsonStore {
     const snapshot = JSON.stringify(this.db)
     this.saveQueue = this.saveQueue
       .catch(() => {})
-      .then(() => this.pool.query(`
+      .then(() => this.queryWithRetry(`
         INSERT INTO ${STATE_TABLE} (id, state, updated_at)
         VALUES (1, $1::jsonb, NOW())
         ON CONFLICT (id) DO UPDATE
         SET state = EXCLUDED.state, updated_at = NOW()
-      `, [snapshot]))
+      `, [snapshot], { attempts: 6, operation: 'PostgreSQL ma’lumotlarini saqlash' }))
 
     this.saveQueue.catch(error => {
       console.error('PostgreSQL saqlash xatosi:', error.message)
